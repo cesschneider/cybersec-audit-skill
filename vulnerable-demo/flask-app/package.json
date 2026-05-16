@@ -1,0 +1,6 @@
+{
+  "name": "vulnerable-flask-demo",
+  "version": "1.0.0",
+  "description": "Intentionally vulnerable Flask app for security audit training",
+  "dependencies": {}
+}

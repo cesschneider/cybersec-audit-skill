@@ -1,0 +1,40 @@
+{
+  "schema_version": "1.0",
+  "report": {
+    "project": "",
+    "path": "",
+    "date": "YYYY-MM-DD",
+    "scanner_version": "1.0.0",
+    "layers_used": {
+      "deterministic_patterns": true,
+      "sast_tools": false,
+      "llm_contextual": true
+    },
+    "files_scanned": 0,
+    "total_findings": 0,
+    "risk_score": 0
+  },
+  "summary": {
+    "critical": 0,
+    "high": 0,
+    "medium": 0,
+    "low": 0,
+    "info": 0
+  },
+  "findings": [
+    {
+      "id": "CRIT-001",
+      "severity": "critical",
+      "category": "sql_injection",
+      "cwe": "CWE-89",
+      "file": "app.py",
+      "line": 42,
+      "column": 0,
+      "vulnerable_code": "cursor.execute(f\"SELECT * FROM users WHERE id = {user_id}\")",
+      "description": "SQL query is built using f-string interpolation, allowing attackers to inject arbitrary SQL.",
+      "remediation": "Use parameterized queries with placeholder values.",
+      "fixed_code": "cursor.execute(\"SELECT * FROM users WHERE id = %s\", (user_id,))",
+      "autofix_ready": true
+    }
+  ]
+}

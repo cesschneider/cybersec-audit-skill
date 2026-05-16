@@ -1,0 +1,12 @@
+{
+  "name": "cybersec-audit-skill",
+  "version": "1.0.0",
+  "description": "AI-powered cybersecurity audit skill for Claude Agent — hybrid deterministic + LLM vulnerability scanning with auto-fix",
+  "main": "SKILL.md",
+  "scripts": {
+    "test": "echo \"Run vulnerability scan against vulnerable-demo/\""
+  },
+  "keywords": ["security", "audit", "vulnerability", "sast", "claude-agent"],
+  "author": "Cesar Schneider",
+  "license": "MIT"
+}

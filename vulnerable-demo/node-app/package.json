@@ -1,0 +1,14 @@
+{
+  "name": "vulnerable-node-demo",
+  "version": "1.0.0",
+  "description": "Intentionally vulnerable Express.js app for security audit training",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "audit": "npm audit"
+  },
+  "dependencies": {
+    "express": "^4.18.0",
+    "sqlite3": "^5.1.0"
+  }
+}
