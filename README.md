@@ -4,6 +4,10 @@ A Claude Agent skill that performs hybrid source code security audits — determ
 
 Includes an intentionally vulnerable demo app to demonstrate the audit capability live.
 
+## Setup
+
+See [INSTALL.md](INSTALL.md) for full tool installation and configuration.
+
 ## Quick Start
 
 ```
