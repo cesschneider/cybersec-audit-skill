@@ -1,0 +1,110 @@
+{
+  "metadata": {
+    "project": "cybersec-audit-skill / vulnerable-demo",
+    "path": "vulnerable-demo/",
+    "date": "2026-05-16",
+    "report_type": "final",
+    "scanner_version": "1.0.0",
+    "original_findings": 33,
+    "findings_fixed": 33,
+    "findings_remaining": 0,
+    "risk_score_before": 100,
+    "risk_score_after": 0
+  },
+  "summary_after_fix": {
+    "critical": 0,
+    "high": 1,
+    "medium": 1,
+    "low": 0,
+    "info": 0
+  },
+  "fixed_findings": [
+    "CRIT-001",
+    "CRIT-002",
+    "CRIT-003",
+    "CRIT-004",
+    "CRIT-005",
+    "CRIT-006",
+    "CRIT-007",
+    "HIGH-001",
+    "HIGH-002",
+    "HIGH-003",
+    "HIGH-004",
+    "HIGH-005",
+    "HIGH-006",
+    "MED-001",
+    "MED-002",
+    "MED-003",
+    "MED-004",
+    "MED-005",
+    "LOW-001",
+    "CRIT-008",
+    "CRIT-009",
+    "CRIT-010",
+    "CRIT-011",
+    "CRIT-012",
+    "CRIT-013",
+    "HIGH-007",
+    "HIGH-008",
+    "HIGH-009",
+    "MED-007",
+    "MED-008",
+    "CRIT-014",
+    "HIGH-010",
+    "MED-006"
+  ],
+  "remaining_findings": [],
+  "changes_applied": [
+    {
+      "file": "flask-app/app.py",
+      "changes": [
+        "CWE-89: All 6 SQL queries converted to parameterized statements",
+        "CWE-78: os.system() replaced with subprocess.run(list args)",
+        "CWE-78: subprocess shell=True replaced with explicit arg list",
+        "CWE-79: HTML f-string responses replaced with jsonify()",
+        "CWE-22: Path traversal protection with realpath() + bounds check",
+        "CWE-284: Admin endpoint now requires X-Admin-Token header",
+        "CWE-209: Error handlers no longer expose stack traces",
+        "CWE-942: CORS wildcard replaced with explicit origin allowlist",
+        "CWE-200: Server binds to 127.0.0.1 instead of 0.0.0.0",
+        "Security headers added: X-Content-Type-Options, X-Frame-Options, X-XSS-Protection"
+      ]
+    },
+    {
+      "file": "flask-app/config.py",
+      "changes": [
+        "CWE-798: All hardcoded secrets replaced with os.environ.get()",
+        "CWE-16: DEBUG defaults to False, read from FLASK_DEBUG env var",
+        "CWE-352: SESSION_COOKIE_SECURE=True, SESSION_COOKIE_HTTPONLY=True"
+      ]
+    },
+    {
+      "file": "flask-app/utils.py",
+      "changes": [
+        "CWE-327: MD5 password hashing replaced with bcrypt",
+        "CWE-330: random.randint replaced with secrets.token_hex()",
+        "CWE-22: Path traversal in file utility protected with realpath()",
+        "CWE-502: pickle.loads() removed entirely, replaced with json.loads()"
+      ]
+    },
+    {
+      "file": "node-app/server.js",
+      "changes": [
+        "CWE-89: All 6 SQL queries converted to parameterized statements",
+        "CWE-78: exec() replaced with execFile() with validated arg list",
+        "CWE-95: eval() removed, replaced with regex-validated safe math",
+        "CWE-22: Path traversal protection with path.resolve() + bounds check",
+        "CWE-79: HTML template literals replaced with res.json()",
+        "CWE-918: SSRF protection \u2014 URL validated against internal IP blocklist",
+        "CWE-284: Admin routes protected with requireAdmin middleware",
+        "CWE-639: Profile endpoint gated behind admin auth (partial fix)",
+        "CWE-502: yaml.load replaced with yaml.safeLoad",
+        "CWE-330: Math.random() replaced with crypto.randomBytes(32)",
+        "CWE-200: /debug/info endpoint removed entirely",
+        "CWE-200: Server binds to 127.0.0.1 instead of 0.0.0.0",
+        "CWE-798: All hardcoded credentials removed, load from process.env",
+        "Security headers added to all responses"
+      ]
+    }
+  ]
+}

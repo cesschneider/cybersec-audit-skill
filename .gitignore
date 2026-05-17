@@ -14,7 +14,7 @@ node_modules/
 .DS_Store
 
 # Audit outputs (keep dir, ignore contents)
-.audit/
+# .audit/  ← temporarily unignored for demo purposes
 
 # IDE
 .vscode/
