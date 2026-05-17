@@ -1,14 +1,17 @@
 {
   "name": "vulnerable-node-demo",
   "version": "1.0.0",
-  "description": "Intentionally vulnerable Express.js app for security audit training",
+  "description": "Security-fixed Express.js app (cybersec audit training)",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "audit": "npm audit"
+    "audit": "npm audit",
+    "test": "node tests/auth.test.js"
   },
   "dependencies": {
+    "bcryptjs": "^2.4.3",
     "express": "^4.18.0",
+    "jsonwebtoken": "^9.0.0",
     "sqlite3": "^5.1.0"
   }
 }
