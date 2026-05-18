@@ -1,0 +1,156 @@
+name: Security Audit
+
+on:
+  push:
+    branches: [main, autofix-security-fixes]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  security-events: write   # for SARIF upload
+  pull-requests: write      # for PR comments
+
+jobs:
+  # ─────────────────────────────────────────────
+  # Layer 0: Dependency audit
+  # ─────────────────────────────────────────────
+  dependency-audit:
+    name: Dependency Audit (Layer 0)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install pip-audit
+        run: pip install pip-audit
+
+      - name: Python dependency audit
+        run: |
+          if [ -f vulnerable-demo/flask-app/requirements.txt ]; then
+            pip-audit -r vulnerable-demo/flask-app/requirements.txt --format json \
+              -o .audit/pip-audit-ci.json || true
+            pip-audit -r vulnerable-demo/flask-app/requirements.txt || true
+          fi
+
+      - name: Node dependency audit
+        run: |
+          if [ -f vulnerable-demo/node-app/package.json ]; then
+            cd vulnerable-demo/node-app
+            npm ci --ignore-scripts
+            npm audit --json > ../../.audit/npm-audit-ci.json || true
+            npm audit || true
+          fi
+
+  # ─────────────────────────────────────────────
+  # Layer 1 + 2: SAST (semgrep + bandit)
+  # ─────────────────────────────────────────────
+  sast:
+    name: SAST Scan (Layers 1 & 2)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history for git-log secret scan
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install SAST tools
+        run: pip install semgrep bandit
+
+      - name: Run semgrep (OWASP Top 10)
+        run: |
+          semgrep scan \
+            --config "p/owasp-top-ten" \
+            --config "p/python" \
+            --config "p/javascript" \
+            --json \
+            --output .audit/semgrep-ci.json \
+            vulnerable-demo/ || true
+          semgrep scan \
+            --config "p/owasp-top-ten" \
+            --config "p/python" \
+            --config "p/javascript" \
+            --sarif \
+            --output .audit/semgrep-ci.sarif \
+            vulnerable-demo/ || true
+
+      - name: Upload semgrep SARIF to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: .audit/semgrep-ci.sarif
+        continue-on-error: true
+
+      - name: Run bandit (Python)
+        run: |
+          bandit -r vulnerable-demo/flask-app/ \
+            -f json \
+            -o .audit/bandit-ci.json || true
+          bandit -r vulnerable-demo/flask-app/ -ll || true
+
+      - name: Entropy secrets scan (git history)
+        run: |
+          python ci/entropy_scan.py vulnerable-demo/ \
+            --output .audit/entropy-ci.json || true
+
+      - name: Check for critical findings
+        run: python ci/check_findings.py
+
+  # ─────────────────────────────────────────────
+  # Layer 3: Run existing security test suite
+  # ─────────────────────────────────────────────
+  security-tests:
+    name: Security Regression Tests (Layer 3)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install Node dependencies
+        run: |
+          cd vulnerable-demo/node-app
+          npm ci --ignore-scripts
+
+      - name: Run auth & IDOR regression tests
+        env:
+          JWT_SECRET: ci-test-secret-not-for-production
+        run: |
+          cd vulnerable-demo/node-app
+          node tests/auth.test.js
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python test dependencies
+        run: |
+          pip install pytest requests
+          if [ -f vulnerable-demo/flask-app/requirements.txt ]; then
+            pip install -r vulnerable-demo/flask-app/requirements.txt || true
+          fi
+
+      - name: Run Flask security regression tests
+        run: |
+          if [ -f vulnerable-demo/flask-app/tests/security_regression.py ]; then
+            python -m pytest vulnerable-demo/flask-app/tests/ -v
+          else
+            echo "No Flask regression tests yet — skipping"
+          fi
