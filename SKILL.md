@@ -175,6 +175,20 @@ if [ -f requirements.txt ] && command -v pip-audit &>/dev/null; then pip-audit -
 
 **No tools installed?** Skip silently — Layers 1 and 3 still provide full coverage.
 
+### Step 3b: Architecture-Level Finding Detection
+
+After per-file scans, look for **pervasive patterns** that represent system-wide gaps:
+
+1. **Missing global auth middleware** — are there routes that bypass authentication entirely? Check for middleware registration vs. all registered routes.
+2. **Unvalidated input pipeline-wide** — does any request parameter flow into DB, filesystem, or subprocess across multiple files without a central validation layer?
+3. **Secrets architecture** — are secrets loaded from hardcoded fallbacks if env vars are missing across multiple modules?
+4. **Global CORS/CSP misconfiguration** — is the wildcard CORS or missing CSP applied at the app level (not just one route)?
+5. **Logging/monitoring gaps** — are security-relevant events (failed logins, admin actions) logged nowhere in the codebase?
+
+**Architecture findings use `ARCH-###` IDs** and are scored at one severity level higher than the same issue in a single file (e.g. missing auth on one route = HIGH; missing auth middleware globally = CRITICAL). Count each architecture finding **once** regardless of how many files are affected — do not multiply per file.
+
+See `docs/risk-scoring.md` for full scoring methodology and delta reporting.
+
 ### Step 4: LLM Contextual Analysis
 
 Read source files (especially entry points from Step 1) and analyze what grep can't detect:
