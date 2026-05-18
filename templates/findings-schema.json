@@ -1,18 +1,32 @@
 {
-  "schema_version": "1.0",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "schema_version": "1.1.0",
+  "description": "Cybersecurity Audit Skill — canonical findings schema",
   "report": {
     "project": "",
     "path": "",
     "date": "YYYY-MM-DD",
-    "scanner_version": "1.0.0",
+    "scanner_version": "1.1.0",
     "layers_used": {
       "deterministic_patterns": true,
-      "sast_tools": false,
-      "llm_contextual": true
+      "sast_tools_executed": false,
+      "sast_tools_list": [],
+      "llm_contextual": true,
+      "architecture_level": true
     },
     "files_scanned": 0,
     "total_findings": 0,
-    "risk_score": 0
+    "risk_score": 0,
+    "risk_label": "Clean",
+    "score_breakdown": {
+      "critical": 0,
+      "high": 0,
+      "medium": 0,
+      "low": 0,
+      "info": 0,
+      "raw_score": 0,
+      "capped": false
+    }
   },
   "summary": {
     "critical": 0,
@@ -34,7 +48,30 @@
       "description": "SQL query is built using f-string interpolation, allowing attackers to inject arbitrary SQL.",
       "remediation": "Use parameterized queries with placeholder values.",
       "fixed_code": "cursor.execute(\"SELECT * FROM users WHERE id = %s\", (user_id,))",
-      "autofix_ready": true
+      "autofix_ready": true,
+      "status": "open"
+    },
+    {
+      "id": "ARCH-001",
+      "severity": "critical",
+      "category": "missing_authentication",
+      "cwe": "CWE-284",
+      "file": "MULTIPLE",
+      "affected_files": ["app.py", "utils.py", "admin.py"],
+      "line": null,
+      "description": "No authentication middleware is applied globally. Multiple admin/sensitive endpoints are reachable without any auth check. Architecture-level finding — affects the entire request pipeline.",
+      "remediation": "Implement a global auth middleware (e.g. @login_required decorator or Flask-Login) and apply it to all non-public routes.",
+      "autofix_ready": false,
+      "status": "open",
+      "architecture_level": true
     }
-  ]
+  ],
+  "post_fix_delta": {
+    "pre_fix_score": 0,
+    "post_fix_score": 0,
+    "delta": 0,
+    "improvement_pct": 0,
+    "findings_resolved": 0,
+    "findings_remaining": 0
+  }
 }
