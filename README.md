@@ -8,9 +8,72 @@ Includes intentionally vulnerable demo apps (Flask, Node.js, Go, React) to demon
 
 ## Setup
 
-### 1. Install the skill in Claude Code (Hermes)
+Choose your environment below. Step 2 (SAST tools) and Step 3 (output directory) are the
+same for both.
 
-The skill file lives at `SKILL.md` in this repo. Copy it to your Hermes skills directory:
+---
+
+### Option A — Claude Code (Anthropic CLI)
+
+Claude Code uses `CLAUDE.md` for persistent instructions and `.claude/skills/` for reusable
+slash-command workflows.
+
+**Step A1 — Install as a global skill (available in any project)**
+
+```bash
+# Create the global skills directory
+mkdir -p ~/.claude/skills/cybersecurity-audit
+
+# Copy the skill file
+cp SKILL.md ~/.claude/skills/cybersecurity-audit/SKILL.md
+```
+
+Invoke it in any Claude Code session with:
+```
+/cybersecurity-audit
+```
+
+**Step A2 — Or install as a project-level skill (scoped to this repo)**
+
+```bash
+# Run from inside the cloned repo
+mkdir -p .claude/skills/cybersecurity-audit
+cp SKILL.md .claude/skills/cybersecurity-audit/SKILL.md
+```
+
+Invoke it the same way:
+```
+/cybersecurity-audit
+```
+
+**Step A3 — Or inject via CLAUDE.md (no slash command needed)**
+
+If you prefer the skill to load automatically for every session in this repo, append it to
+your project's `CLAUDE.md`:
+
+```bash
+cat SKILL.md >> CLAUDE.md
+```
+
+Or create a user-level CLAUDE.md so the skill is always available globally:
+```bash
+cat SKILL.md >> ~/.claude/CLAUDE.md
+```
+
+**Verify it's loaded:**
+```bash
+# Inside the repo, start a Claude Code session and run:
+/claude
+# Then type /cybersecurity-audit — it should appear in autocomplete
+```
+
+---
+
+### Option B — Hermes (Claude Code by Eworks Labs)
+
+Hermes uses a `~/.hermes/skills/` directory with category subdirectories.
+
+**Step B1 — Copy the skill into Hermes**
 
 ```bash
 # Create the skill directory
@@ -25,15 +88,20 @@ cp INSTALL.md ~/.hermes/skills/security/cybersecurity-audit/references/tool-inst
 cp templates/findings-schema.json ~/.hermes/skills/security/cybersecurity-audit/references/
 ```
 
-Verify the skill is visible in your Hermes session:
+**Step B2 — Verify the skill is visible**
+
+In your Hermes session:
 ```
 /skills
 ```
-You should see `cybersecurity-audit` listed.
+You should see `cybersecurity-audit` listed. Hermes auto-loads the skill when you use
+trigger phrases like "audit this app", "run a security scan", or "find vulnerabilities".
 
-### 2. Install SAST tools
+---
 
-See [INSTALL.md](INSTALL.md) for full platform-specific installation (Linux, macOS, cloud VMs).
+### Step 2 — Install SAST tools (both environments)
+
+See [INSTALL.md](INSTALL.md) for full platform-specific instructions (Linux, macOS, cloud VMs).
 
 Quick install:
 ```bash
@@ -41,32 +109,27 @@ pip install bandit semgrep njsscan pip-audit
 npm install -g eslint eslint-plugin-security
 ```
 
-If `bandit` or `semgrep` are not found after install, add pip bin to PATH:
+If `bandit` or `semgrep` are not found after install, add the pip bin directory to PATH:
 ```bash
 export PATH=$PATH:~/.local/bin
+# Make it permanent:
+echo 'export PATH=$PATH:~/.local/bin' >> ~/.bashrc && source ~/.bashrc
 ```
 
-### 3. Create output directory
+### Step 3 — Create the output directory (both environments)
 
 ```bash
 cd cybersec-audit-skill
 mkdir -p .audit
+# .audit/ is already in .gitignore in this repo
 ```
-
-### 4. Point Claude at the repo
-
-In your Hermes session, just say:
-```
-audit the vulnerable-demo/flask-app at /path/to/cybersec-audit-skill
-```
-Claude will load the skill automatically based on the trigger phrase.
 
 ---
 
 ## Quick Start
 
 ```bash
-# In your Hermes/Claude Code session:
+# In your Claude Code or Hermes session:
 "Audit the vulnerable-demo/flask-app directory"
 
 # The agent will:
