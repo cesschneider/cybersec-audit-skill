@@ -2,12 +2,8 @@
 name: cybersecurity-audit
 description: "Use when performing source code security audits on any project — deterministic pattern scanning, LLM contextual analysis, report generation in Markdown and JSON, with optional auto-fix after review."
 version: 1.0.0
-author: Cesar Schneider
 license: MIT
-metadata:
-  hermes:
-    tags: [cybersecurity, security, audit, vulnerability, code-review, auto-fix, sast]
-    related_skills: [requesting-code-review, systematic-debugging]
+tags: [cybersecurity, security, audit, vulnerability, code-review, auto-fix, sast]
 ---
 
 # Cybersecurity Code Audit

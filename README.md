@@ -69,7 +69,7 @@ cat SKILL.md >> ~/.claude/CLAUDE.md
 
 ---
 
-### Option B — Hermes (Claude Code by Eworks Labs)
+### Option B — Hermes CLI
 
 Hermes uses a `~/.hermes/skills/` directory with category subdirectories.
 

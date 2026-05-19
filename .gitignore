@@ -12,11 +12,25 @@ node_modules/
 
 # OS
 .DS_Store
+Thumbs.db
 
-# Audit outputs (keep dir, ignore contents)
+# Audit outputs — generated locally, never commit
 .audit/
+*.audit.json
+*.audit.md
+
+# Secrets / local config — never commit
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+secrets.json
+local_settings.py
 
 # IDE
 .vscode/
 .idea/
 *.swp
+*.swo
