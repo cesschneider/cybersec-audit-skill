@@ -276,6 +276,23 @@ See [docs/risk-scoring.md](docs/risk-scoring.md) for full methodology including 
 
 ---
 
+## Documentation
+
+| Document | Description |
+|---|---|
+| [README.md](README.md) | Project overview and setup |
+| [INSTALL.md](INSTALL.md) | SAST tool installation (Linux, macOS, cloud VMs) |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | How to contribute |
+| [CHANGELOG.md](CHANGELOG.md) | Version history |
+| [SECURITY.md](SECURITY.md) | Vulnerability reporting policy |
+| [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) | Community standards |
+| [docs/architecture.md](docs/architecture.md) | 3-layer audit pipeline internals |
+| [docs/vulnerability-index.md](docs/vulnerability-index.md) | Full index of demo app vulnerabilities |
+| [docs/risk-scoring.md](docs/risk-scoring.md) | Risk score formula and delta reporting |
+
+---
+
 ## License
 
-MIT — Use freely in any project.
+MIT — see [LICENSE](LICENSE) for full text.
+
