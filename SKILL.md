@@ -21,6 +21,9 @@ triggers:
 
 # Cybersecurity Audit Skill
 
+> **Skill Version:** 2.1.0 | **OWASP Reference:** Top 10 2021 + API Top 10 2023 | **Last updated:** 2025-05-19
+> **CVE Currency:** Tools (Semgrep, Nuclei, Trivy) pull latest definitions at scan time. See Phase 0.5 for the mandatory currency check before every audit.
+
 ## Philosophy
 
 This is a **step-by-step investigation**, not a one-shot scan.
@@ -77,6 +80,132 @@ Ask ONLY if relevant based on answers above:
 After gathering context, confirm scope with the user:
 > "Based on what you've told me, I'll audit: [list scope]. I'll check:
 > [list of applicable audit layers]. Does that sound right, or should I add/remove anything?"
+
+---
+
+## PHASE 0.5 — Tool Currency Check (run BEFORE every audit)
+
+**Purpose:** The skill workflow is stable, but the vulnerability landscape changes daily.
+This phase ensures every audit runs with the most current CVE definitions, OWASP rules,
+and scanner templates — regardless of when the skill was last updated.
+
+> ⚠️ **Never skip this phase.** A scanner with stale definitions misses recently disclosed CVEs.
+> A 30-second update prevents a critical blind spot.
+
+### 0.5.1 — Update All Scanner Definitions
+
+```bash
+# --- Semgrep — pull latest rules from the registry ---
+semgrep --update
+# Verify rules are current:
+semgrep --config=p/owasp-top-ten --version
+
+# --- Nuclei — update CVE + misconfiguration templates ---
+nuclei -update-templates
+nuclei -update
+# Confirm template count (should be 5,000+):
+nuclei -list-templates | wc -l
+
+# --- Trivy — refresh NVD vulnerability database ---
+trivy image --download-db-only
+trivy image --download-java-db-only  # if Java stack in scope
+
+# --- pip-audit / safety — use latest PyPI advisory database ---
+pip install --upgrade pip-audit safety
+pip-audit --version
+
+# --- npm audit — always uses live npm registry (no update needed) ---
+# Just confirm npm is current:
+npm --version
+
+# --- Gitleaks — update to latest binary if >30 days old ---
+gitleaks version
+# If outdated: wget latest binary from github.com/gitleaks/gitleaks/releases
+
+# --- Checkov — update IaC rule set ---
+pip install --upgrade checkov
+checkov --version
+
+# --- OSV Scanner — update Go vulnerability database ---
+osv-scanner --version 2>/dev/null || echo "osv-scanner not installed — skip"
+```
+
+### 0.5.2 — Verify OWASP Reference Currency
+
+The skill currently implements:
+- **OWASP Top 10 Web:** [2021 edition](https://owasp.org/Top10/) (next revision expected 2025)
+- **OWASP API Top 10:** [2023 edition](https://owasp.org/API-Security/editions/2023/en/0x00-header/)
+- **OWASP Mobile Top 10:** [2024 edition](https://owasp.org/www-project-mobile-top-10/)
+
+```bash
+# Check for OWASP Top 10 updates (run once per quarter)
+curl -s https://api.github.com/repos/OWASP/Top10/releases/latest \
+  | python3 -c "import json,sys; r=json.load(sys.stdin); print(f'Latest OWASP Top10 release: {r[\"tag_name\"]} ({r[\"published_at\"][:10]})')"
+
+curl -s https://api.github.com/repos/OWASP/API-Security/releases/latest \
+  | python3 -c "import json,sys; r=json.load(sys.stdin); print(f'Latest OWASP API Security release: {r[\"tag_name\"]} ({r[\"published_at\"][:10]})')"
+```
+
+> If a newer OWASP edition is found, flag it as a skill update requirement and adjust
+> the checklist items in Layers 1 and 6 accordingly.
+
+### 0.5.3 — Check for High-Profile CVEs (Last 7 Days)
+
+Before scoping the audit, check for recently disclosed critical CVEs that may be
+directly relevant to the target stack:
+
+```bash
+# Query NVD API for CRITICAL CVEs from the last 7 days
+LAST_WEEK=$(date -d '7 days ago' +%Y-%m-%dT%H:%M:%S.000)
+TODAY=$(date +%Y-%m-%dT%H:%M:%S.000)
+
+curl -s "https://services.nvd.nist.gov/rest/json/cves/2.0?cvssV3Severity=CRITICAL&pubStartDate=${LAST_WEEK}&pubEndDate=${TODAY}" \
+  | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+total = data.get('totalResults', 0)
+print(f'Critical CVEs published in last 7 days: {total}')
+for item in data.get('vulnerabilities', [])[:10]:
+    cve = item['cve']
+    cid = cve['id']
+    desc = cve['descriptions'][0]['value'][:100]
+    print(f'  {cid}: {desc}...')
+" 2>/dev/null || echo "NVD API unavailable — check https://nvd.nist.gov/vuln/search manually"
+
+# Stack-specific CVE search (replace 'django' with target framework)
+# Example: check for recent Django CVEs
+curl -s "https://services.nvd.nist.gov/rest/json/cves/2.0?keywordSearch=django&cvssV3Severity=HIGH&pubStartDate=${LAST_WEEK}&pubEndDate=${TODAY}" \
+  | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+print(f'Recent HIGH+ CVEs for django: {data.get(\"totalResults\", 0)}')
+for item in data.get('vulnerabilities', [])[:5]:
+    cve = item['cve']
+    print(f'  {cve[\"id\"]}: {cve[\"descriptions\"][0][\"value\"][:80]}')
+" 2>/dev/null
+```
+
+### 0.5.4 — Currency Check Output
+
+Save the currency snapshot before proceeding:
+
+```bash
+mkdir -p .audit/currency
+cat > .audit/currency/tool-versions-$(date +%Y-%m-%d).txt << EOF
+Audit Date: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+Semgrep: $(semgrep --version 2>/dev/null)
+Nuclei: $(nuclei -version 2>/dev/null | head -1)
+Trivy: $(trivy --version 2>/dev/null | head -1)
+Gitleaks: $(gitleaks version 2>/dev/null)
+Checkov: $(checkov --version 2>/dev/null)
+pip-audit: $(pip-audit --version 2>/dev/null)
+OWASP Top 10 Reference: 2021
+OWASP API Security Reference: 2023
+NVD Critical CVEs (last 7d): [paste count from 0.5.3]
+EOF
+```
+
+> ✅ Currency check complete — proceed to Phase 1 (Threat Modeling).
 
 ---
 
@@ -1470,6 +1599,45 @@ One commit per finding fixed. Commit message must reference CWE and file.
 - **Rate limiting is often missing on auth endpoints.** Brute-force on `/login`, `/reset-password`, `/verify-otp` is trivially exploitable.
 - **Risk score cap at 100.** Normalize — don't let the score exceed 100.
 - **Compliance ≠ Security.** PCI-DSS / ISO 27001 compliance does not mean the app is secure. Flag both separately.
+- **Pushing to existing repo from fresh local git init** → cherry-pick will fail with conflicts if the remote SKILL.md diverged from the local baseline. Fix: `git checkout -b <branch> origin/main`, copy the updated file directly (`git show <local>:SKILL.md > /tmp/updated.md && cp /tmp/updated.md SKILL.md`), commit as one squashed commit, push branch, open and merge PR via `gh`.
+- **GitHub repo:** `https://github.com/cesschneider/cybersec-audit-skill` — always push to a feature branch and merge via PR, never force-push to main.
+
+---
+
+## Skill Gap Analysis — How to Audit This Skill Itself
+
+When asked to assess whether this skill is "professional grade" or "production quality", run a gap analysis against what a senior security professional (CISO / Head of Security with 20+ years) would expect. This pattern is reusable for any skill audit.
+
+### Gap Analysis Workflow
+
+1. **Load the current skill** and read every section critically
+2. **Profile the expert** — what does someone at that level do daily? (e.g. STRIDE, DAST, cloud IAM, IR, DevSecOps)
+3. **Map coverage** — for each expert capability, is it in the skill? If missing, it's a gap
+4. **Classify gaps by severity:**
+   - 🔴 Critical — a senior pro would immediately notice the absence
+   - 🟠 High — adds significant value, differentiates good from great
+   - 🟡 Polish — professional completeness, not blocking
+
+5. **Prioritize and implement** — patch gaps largest-to-smallest, committing each
+6. **Verify** — re-read the updated skill as if you were the expert. Would you trust it?
+
+### What Made This Skill Production-Grade (lessons from the gap-fill session)
+
+The 14 gaps filled to reach CISO-grade quality:
+1. Threat modeling (STRIDE/PASTA/attack trees) — zero code without threat model first
+2. DAST (running app testing) — SAST alone is half an audit
+3. Supply chain security — post-SolarWinds, this is table stakes
+4. Security headers & TLS (testssl.sh, sslyze) — often missed, always present in pro audits
+5. Incident response readiness — detection posture matters as much as prevention
+6. Structured threat model output (STRIDE per component) — boards need this artifact
+7. DevSecOps pipeline review — security gates in CI/CD, not just code
+8. Cloud IAM deep dive (Prowler, ScoutSuite, privilege escalation paths)
+9. Mobile/frontend security layers (MobSF, cert pinning, SPA security)
+10. Remediation roadmap with 30/60/90-day plan and effort estimates
+11. Evidence collection discipline (PoC, request/response, file naming)
+12. False positive triage process (4-step, FP rate tracking per tool)
+13. Retest/verification workflow (per-finding protocol, attestation statement)
+14. Scope exclusions documentation (authorization, out-of-scope handling)
 
 ---
 
