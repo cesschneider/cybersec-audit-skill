@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-14
+
+### Added
+
+- **Hostile repository triage (skill v2.2.0, Phase 0.0)**: detects code-execution traps in untrusted
+  repositories and archives (malicious git hooks, repo-local git config, IDE auto-run tasks, package
+  lifecycle scripts, DPRK "Contagious Interview" loader URLs and IOCs). The scan runs before any git command.
+  - `ci/hostile_repo_scan.py` with unit tests in `ci/tests/`
+  - `rules/yara/git_hook_dropper.yar`, `rules/sigma/*.yml`
+  - `references/iocs/contagious-interview.json`, `references/hostile-repo-playbook.md`
+  - `ir/macos-triage.sh` (read-only incident triage)
+- CI job `hostile-repo-triage` in `.github/workflows/security-audit.yml`.
+
 ## [1.0.0] - 2026-05-19
 
 Initial public release of the cybersecurity audit Claude AI skill.

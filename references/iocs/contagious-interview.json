@@ -1,0 +1,45 @@
+{
+  "name": "DPRK Contagious Interview — git-hook / take-home loader IOCs",
+  "updated": "2026-11-14",
+  "confidence_legend": {
+    "confirmed": "seen first-hand in an analysed sample",
+    "reported": "published by a named researcher or vendor (see source)"
+  },
+  "ips": [
+    {"value": "45.61.134.57", "note": "C2 :8080 /task/{mac,linux,windows}?id=483 — Prepaire Labs + MMON lures (confirmed; Pershyn 2026-08-26)"},
+    {"value": "45.61.164.38", "note": "C2 :5777 /task/<os>?id=402 git-hook loader (reported; CITIZENDOT 2026-07-23)"},
+    {"value": "162.0.239.85", "note": "C2 :3000 /task/mac?token= trojanized macOS installers (reported; Jamf 2026-09-03)"},
+    {"value": "147.124.202.205", "note": "OtterCookie operator server :7671/7676/7679 (reported; Jamf 2026-09-03)"},
+    {"value": "144.172.103.226", "note": "/301/301{m,l,w} git-hook loader (reported)"},
+    {"value": "216.126.225.243", "note": "post-infection C2 :8085-8087 for nnlabs.pro variant (reported; andrii.ro)"}
+  ],
+  "domains": [
+    {"value": "precommit.vercel.app", "note": "/settings/<os>?flag=5 loader (reported; OpenSourceMalware 2026-05-06)"},
+    {"value": "cleverstack-ext30341.vercel.app", "note": "/api/{m,l,w} renamed-sample loader (reported; mahmudul.dev 2026-06-03)"},
+    {"value": "nnlabs.pro", "note": "/settings/<os>?flag=6 loader (reported; andrii.ro)"}
+  ],
+  "sha256": [
+    {"value": "d825a1ff12cb26ac77714ab07328fe24bc3fd1aae161148186c37078a5fe21cb", "note": "439-byte uname-switch hook, Prepaire Labs lure (confirmed)"},
+    {"value": "dfddf612473d0434ee1c21272a8b8e12574dd936e569f963c1ce3ed5b4bafea3", "note": "Prepaire Labs assessment.zip (confirmed)"}
+  ],
+  "strings": [
+    {"value": "\"name\": \"tokendapp\"", "note": "OtterCookie package.json fetched by /task/json"},
+    {"value": "tokenlinux.npl", "note": "stage-2 file name (CITIZENDOT)"},
+    {"value": "com.avatar.update.wake", "note": "InvisibleFerret macOS LaunchAgent label (MITRE S1245)"}
+  ],
+  "lure_identities": [
+    {"value": "Prepaire Labs developer exercise", "note": "real company name abused; confirmed lure"},
+    {"value": "francesco1124 <franciscovdev12@gmail.com>", "note": "git committer of the Prepaire lure (confirmed)"},
+    {"value": "Junior@DESKTOP-5MQOJ9O", "note": "reflog identity of the operator host (confirmed)"},
+    {"value": "rokooip49-bit", "note": "git author of the MMON lure, same C2 (reported; Pershyn)"}
+  ],
+  "sources": [
+    "https://medium.com/@eduard.pershyn/anatomy-of-a-web3-interview-scam-558d78e22b3d",
+    "https://citizendot.github.io/articles/fake-job-interview-git-hook-malware/",
+    "https://www.jamf.com/blog/contagious-interview-trojanized-macos-installers/",
+    "https://opensourcemalware.com/blog/dprk-git-hooks-malware",
+    "https://mahmudul.dev/posts/fake-recruiter-git-hook-malware",
+    "https://andrii.ro/blog/investigating-malware",
+    "https://attack.mitre.org/groups/G1052/"
+  ]
+}

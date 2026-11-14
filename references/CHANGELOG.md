@@ -6,6 +6,37 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [2.2.0] — 2026-11-14
+
+Driven by a real incident: a DPRK "Contagious Interview" take-home test shipped as a ZIP with a
+live `.git/hooks/` folder whose hooks ran `curl … /task/mac?id=483 | bash` on checkout and commit.
+
+### Added
+- **Phase 0.0 — Hostile Repository Triage**: a mandatory gate for untrusted code that runs before any git
+  command, tool, install or IDE open. Covers safe-handling rules, an automated scan, manual one-liners and
+  a decision gate that routes to incident response.
+- **`ci/hostile_repo_scan.py`**: a stdlib-only static scanner for directories, `.zip` and `.tar(.gz)`.
+  Archives are read in memory, symlinks are not followed, and nothing is executed. It has 13 checks:
+  active and trojanized hooks with exec bit and trigger, git-config exec keys, tracked hook dirs, IDE
+  auto-run tasks, devcontainer commands, npm/setup.py lifecycle scripts, download-and-execute one-liners,
+  campaign loader URL shapes, IOCs, raw-IP URLs, obfuscated JS, archives shipping `.git`, and operator
+  artifacts. Output is schema-compatible JSON with ATT&CK IDs and defanged evidence. Exit codes 0/1/2.
+- **`ci/tests/test_hostile_repo_scan.py`**: 31 unit tests. Fixtures are built at runtime on TEST-NET addresses.
+- **`references/iocs/contagious-interview.json`**: C2 IPs, domains, hashes, strings and lure identities, with sources.
+- **`rules/yara/git_hook_dropper.yar`**: OS-switch hook downloader, loader URL shapes, known hook hash,
+  known C2 and OtterCookie stage-2 artifacts. Validated against the real sample with no false positives on stock samples.
+- **`rules/sigma/git_hook_spawns_downloader_{macos,linux}.yml`**: experimental. Closes the macOS gap,
+  since the published Elastic git-hook rules are Linux-only.
+- **`ir/macos-triage.sh`**: read-only macOS evidence collection (timeline, processes and egress, dropped
+  files, persistence, unified log, data-at-risk inventory).
+- **`references/hostile-repo-playbook.md`**: the reference case, handling rules, triage, incident response
+  order, likely macOS payload chain, detection content, ATT&CK mapping, campaign variants and references.
+- New triggers for take-home, interview and "was I compromised" requests. Layer 10 checklist items for
+  repository-as-executable risks. Six new Pitfalls.
+- CI job `hostile-repo-triage` (unit tests, self-scan, demo scan).
+
+---
+
 ## [2.1.0] — 2025-05-19
 
 ### Added

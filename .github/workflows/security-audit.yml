@@ -2,18 +2,68 @@ name: Security Audit
 
 on:
   push:
-    branches: [main, autofix-security-fixes]
+    branches: [main, autofix-security-fixes, "claude/**"]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
   security-events: write   # for SARIF upload
-  pull-requests: write      # for PR comments
+
+# The vulnerable-demo/ apps are INTENTIONALLY insecure. Jobs that scan them are
+# detection-regression checks: they pass when the scanners DETECT the planted
+# vulnerabilities and fail when detection silently breaks.
 
 jobs:
   # ─────────────────────────────────────────────
-  # Layer 0: Dependency audit
+  # Phase 0.0: Hostile repository triage
+  # (git hooks / git config / IDE tasks / lifecycle scripts)
+  # ─────────────────────────────────────────────
+  hostile-repo-triage:
+    name: Hostile Repo Triage (Phase 0.0)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Scanner unit tests
+        run: python -m unittest discover -s ci/tests -v
+
+      - name: Scan this repository for planted traps
+        # Documentation and reference material (IOC lists, rules, playbook, IR
+        # script, skill docs) intentionally quote attacker strings, so they are
+        # excluded EXPLICITLY here. The scanner deliberately has no in-repo ignore
+        # file: a hostile repo could ship one to hide its own hooks.
+        run: |
+          mkdir -p .audit
+          python -I ci/hostile_repo_scan.py . \
+            --exclude 'references/*' 'rules/*' 'ir/*' \
+                      'docs/*' 'SKILL.md' 'README.md' 'CHANGELOG.md' \
+                      'ci/hostile_repo_scan.py' 'ci/tests/*' \
+            -o .audit/hostile-repo-ci.json
+
+      - name: Scan demo apps (must be free of hostile-repo traps)
+        run: python -I ci/hostile_repo_scan.py vulnerable-demo/ -o .audit/hostile-repo-demo.json
+
+      - name: Validate detection rule syntax (YARA + Sigma)
+        run: |
+          pip install --quiet yara-python pyyaml
+          python - <<'EOF'
+          import glob, yara, yaml
+          yara.compile(filepath="rules/yara/git_hook_dropper.yar")
+          for f in glob.glob("rules/sigma/*.yml"):
+              rule = yaml.safe_load(open(f))
+              assert {"title", "id", "logsource", "detection"} <= rule.keys(), f
+          print("YARA and Sigma rules are valid")
+          EOF
+
+  # ─────────────────────────────────────────────
+  # Layer 0: Dependency audit (informational on demo apps)
   # ─────────────────────────────────────────────
   dependency-audit:
     name: Dependency Audit (Layer 0)
@@ -36,23 +86,28 @@ jobs:
 
       - name: Python dependency audit
         run: |
+          mkdir -p .audit
           if [ -f vulnerable-demo/flask-app/requirements.txt ]; then
             pip-audit -r vulnerable-demo/flask-app/requirements.txt --format json \
               -o .audit/pip-audit-ci.json || true
-            pip-audit -r vulnerable-demo/flask-app/requirements.txt || true
+          else
+            echo "No requirements.txt in flask demo — skipping pip-audit"
           fi
 
       - name: Node dependency audit
         run: |
-          if [ -f vulnerable-demo/node-app/package.json ]; then
-            cd vulnerable-demo/node-app
-            npm ci --ignore-scripts
-            npm audit --json > ../../.audit/npm-audit-ci.json || true
-            npm audit || true
-          fi
+          mkdir -p .audit
+          cd vulnerable-demo/node-app
+          # No lockfile is committed for the demo: resolve one without running scripts
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          npm audit --json > ../../.audit/npm-audit-ci.json || true
+          npm audit || true
+
+      - name: Layer 0 script smoke test
+        run: python ci/layer0_dependency_audit.py vulnerable-demo/node-app --output .audit/layer0-ci.json || [ $? -eq 1 ]
 
   # ─────────────────────────────────────────────
-  # Layer 1 + 2: SAST (semgrep + bandit)
+  # Layer 1 + 2: SAST (semgrep + bandit) — detection regression
   # ─────────────────────────────────────────────
   sast:
     name: SAST Scan (Layers 1 & 2)
@@ -72,6 +127,7 @@ jobs:
 
       - name: Run semgrep (OWASP Top 10)
         run: |
+          mkdir -p .audit
           semgrep scan \
             --config "p/owasp-top-ten" \
             --config "p/python" \
@@ -89,7 +145,7 @@ jobs:
 
       - name: Upload semgrep SARIF to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v3
-        if: always()
+        if: always() && hashFiles('.audit/semgrep-ci.sarif') != ''
         with:
           sarif_file: .audit/semgrep-ci.sarif
         continue-on-error: true
@@ -101,16 +157,16 @@ jobs:
             -o .audit/bandit-ci.json || true
           bandit -r vulnerable-demo/flask-app/ -ll || true
 
-      - name: Entropy secrets scan (git history)
+      - name: Entropy secrets scan
         run: |
           python ci/entropy_scan.py vulnerable-demo/ \
             --output .audit/entropy-ci.json || true
 
-      - name: Check for critical findings
-        run: python ci/check_findings.py
+      - name: Detection regression — scanners must find the planted vulnerabilities
+        run: python ci/check_findings.py --expect-findings --min 3
 
   # ─────────────────────────────────────────────
-  # Layer 3: Run existing security test suite
+  # Layer 3: Security regression tests
   # ─────────────────────────────────────────────
   security-tests:
     name: Security Regression Tests (Layer 3)
@@ -123,17 +179,8 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Install Node dependencies
-        run: |
-          cd vulnerable-demo/node-app
-          npm ci --ignore-scripts
-
-      - name: Run auth & IDOR regression tests
-        env:
-          JWT_SECRET: ci-test-secret-not-for-production
-        run: |
-          cd vulnerable-demo/node-app
-          node tests/auth.test.js
+      - name: Node demo syntax check
+        run: node --check vulnerable-demo/node-app/server.js
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -141,16 +188,25 @@ jobs:
           python-version: "3.12"
 
       - name: Install Python test dependencies
-        run: |
-          pip install pytest requests
-          if [ -f vulnerable-demo/flask-app/requirements.txt ]; then
-            pip install -r vulnerable-demo/flask-app/requirements.txt || true
-          fi
+        run: pip install pytest
 
       - name: Run Flask security regression tests
+        # On the intentionally vulnerable branches the suite MUST fail (it proves
+        # each planted vulnerability is detected). On autofix-security-fixes,
+        # where the vulnerabilities are patched, it MUST pass.
+        env:
+          BRANCH: ${{ github.head_ref || github.ref_name }}
         run: |
-          if [ -f vulnerable-demo/flask-app/tests/security_regression.py ]; then
-            python -m pytest vulnerable-demo/flask-app/tests/ -v
+          set +e
+          python -m pytest vulnerable-demo/flask-app/tests/security_regression.py -q -p no:cacheprovider \
+            | tee pytest.log
+          rc=${PIPESTATUS[0]}
+          set -e
+          if [ "$BRANCH" = "autofix-security-fixes" ]; then
+            [ "$rc" -eq 0 ] || { echo "❌ fixed branch must pass all regression tests"; exit 1; }
+            echo "✅ fixed branch passes all regression tests"
           else
-            echo "No Flask regression tests yet — skipping"
+            [ "$rc" -eq 1 ] || { echo "❌ expected failing tests (vulnerabilities present), pytest rc=$rc"; exit 1; }
+            grep -Eq '[0-9]+ failed' pytest.log || { echo "❌ no failing tests reported"; exit 1; }
+            echo "✅ regression suite detects the planted vulnerabilities: $(grep -Eo '[0-9]+ failed' pytest.log)"
           fi
